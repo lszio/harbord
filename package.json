@@ -1,10 +1,20 @@
 {
   "name": "harbord",
-  "module": "index.ts",
+  "module": "src/index.ts",
   "type": "module",
   "private": true,
+  "scripts": {
+    "dev": "bun run src/index.ts",
+    "build": "bun build src/index.ts --outdir=dist --target=bun --format=cjs",
+    "build:cli": "bun build src/cli.ts --outdir=dist --target=bun --format=cjs",
+    "build:all": "bun run build && bun run build:cli",
+    "test": "vitest",
+    "test:run": "vitest run",
+    "test:e2e": "vitest run --config vitest.e2e.config.ts"
+  },
   "devDependencies": {
-    "@types/bun": "latest"
+    "@types/bun": "latest",
+    "vitest": "^4.1.5"
   },
   "peerDependencies": {
     "typescript": "^5"
