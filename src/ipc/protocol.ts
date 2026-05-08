@@ -23,6 +23,9 @@ export const IpcMethod = {
   RuntimeInspect: 'runtime.inspect',
   RuntimeLogs: 'runtime.logs',
   EventSubscribe: 'event.subscribe',
+  SelfRegister: 'self.register',
+  SelfExpose: 'self.expose',
+  SelfAlive: 'self.alive',
 } as const
 
 export type IpcMethod = (typeof IpcMethod)[keyof typeof IpcMethod]

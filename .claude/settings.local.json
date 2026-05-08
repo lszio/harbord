@@ -1,10 +1,7 @@
 {
   "permissions": {
     "allow": [
-      "Bash(bun add *)",
-      "Bash(bun test:run *)",
-      "Bash(bun run *)",
-      "Bash(bun test:e2e *)",
+      "Bash(bun *)",
       "Bash(tsc --noEmit)"
     ]
   }

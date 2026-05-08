@@ -1,12 +1,13 @@
+import { SocketClient, Registry, RuntimeServiceProxy } from '../src/index'
+import type { RuntimeState } from '../src/index'
+import { join } from 'node:path'
 import { describe, it, expect, beforeEach, afterEach } from 'vitest'
 import { mkdtempSync, existsSync } from 'node:fs'
 import { rm } from 'node:fs/promises'
-import { join } from 'node:path'
 import { tmpdir } from 'node:os'
 import { spawn, type ChildProcess } from 'node:child_process'
 
-// Import from the SDK entry, not internal modules
-import { SocketClient, Registry } from '../src/index'
+const echoServer = join(import.meta.dirname, '..', 'src', 'backend', '__tests__', 'helpers', 'echo-server.ts')
 
 function createTempDir(): string {
   return mkdtempSync(join(tmpdir(), 'harbord-e2e-'))
@@ -189,5 +190,91 @@ describe('Daemon Lifecycle (E2E)', () => {
     expect(ids).toEqual(['keep'])
 
     await client.close()
+  })
+
+  describe('runtime lifecycle', () => {
+    it('should start and stop a runtime via IPC', async () => {
+      const client = new SocketClient(daemon.registry.getSocketPath())
+      await client.connect()
+
+      const state = await client.request<RuntimeState>('runtime.start', {
+        id: 'e2e-svc',
+        entry: echoServer,
+      })
+      expect(state.status).toBe('running')
+      expect(state.pid!).toBeGreaterThan(0)
+
+      const stopped = await client.request<RuntimeState>('runtime.stop', { id: 'e2e-svc' })
+      expect(stopped.status).toBe('stopped')
+
+      await client.close()
+    })
+
+    it('should inspect a running runtime', async () => {
+      const client = new SocketClient(daemon.registry.getSocketPath())
+      await client.connect()
+
+      await client.request('runtime.start', { id: 'e2e-svc', entry: echoServer })
+
+      const state = await client.request<RuntimeState>('runtime.inspect', { id: 'e2e-svc' })
+      expect(state.status).toBe('running')
+      expect(state.pid!).toBeGreaterThan(0)
+
+      await client.request('runtime.stop', { id: 'e2e-svc' })
+      await client.close()
+    })
+
+    it('should return null inspecting non-existent runtime', async () => {
+      const client = new SocketClient(daemon.registry.getSocketPath())
+      await client.connect()
+
+      const state = await client.request<RuntimeState | null>('runtime.inspect', { id: 'non-existent' })
+      expect(state).toBeNull()
+
+      await client.close()
+    })
+  })
+
+  describe('self API', () => {
+    it('should register self and expose metadata', async () => {
+      const client = new SocketClient(daemon.registry.getSocketPath())
+      await client.connect()
+
+      const reg = await client.request<{ registered: boolean }>('self.register', { id: 'my-worker' })
+      expect(reg.registered).toBe(true)
+
+      const exp = await client.request<{ exposed: boolean }>('self.expose', {
+        id: 'my-worker',
+        metadata: { port: 3000 },
+      })
+      expect(exp.exposed).toBe(true)
+
+      const alive = await client.request<{ ok: boolean }>('self.alive', {
+        id: 'my-worker',
+        timestamp: Date.now(),
+      })
+      expect(alive.ok).toBe(true)
+
+      await client.close()
+    })
+  })
+
+  describe('RuntimeServiceProxy (E2E)', () => {
+    it('should control runtime through proxy over IPC', async () => {
+      const client = new SocketClient(daemon.registry.getSocketPath())
+      await client.connect()
+
+      const proxy = new RuntimeServiceProxy(client, 'proxy-svc')
+      const state = await proxy.up({ id: 'proxy-svc', entry: echoServer })
+      expect(state.status).toBe('running')
+      expect(proxy.state?.status).toBe('running')
+      expect(proxy.pid).toBeGreaterThan(0)
+
+      const stopped = await proxy.down()
+      expect(stopped.status).toBe('stopped')
+      expect(proxy.state?.status).toBe('stopped')
+
+      await client.close()
+    })
   })
 })
