@@ -1,22 +1,51 @@
 {
   "name": "harbord",
-  "module": "src/index.ts",
+  "version": "0.1.0",
+  "description": "Declarative Local Runtime Supervisor for Node.js Applications",
   "type": "module",
-  "private": true,
+  "module": "dist/esm/index.js",
+  "main": "dist/cjs/index.js",
+  "types": "dist/types/index.d.ts",
+  "exports": {
+    ".": {
+      "import": "./dist/esm/index.js",
+      "require": "./dist/cjs/index.js"
+    }
+  },
+  "bin": {
+    "harbord": "./dist/cjs/cli.js"
+  },
+  "files": [
+    "dist/",
+    "README.md",
+    "LICENSE"
+  ],
+  "private": false,
   "scripts": {
-    "dev": "bun run src/index.ts",
-    "build": "bun build src/index.ts --outdir=dist --target=bun --format=cjs",
-    "build:cli": "bun build src/cli.ts --outdir=dist --target=bun --format=cjs",
-    "build:all": "bun run build && bun run build:cli",
+    "dev": "bun run src/cli.ts --daemon",
+    "build": "bun run build.ts",
+    "clean": "rm -rf dist/ coverage/",
+    "prepublishOnly": "bun run build",
+    "version": "conventional-changelog -p angular -i CHANGELOG.md -s && git add CHANGELOG.md",
+    "typecheck": "tsc --noEmit",
     "test": "vitest",
     "test:run": "vitest run",
     "test:e2e": "vitest run --config vitest.e2e.config.ts"
   },
   "devDependencies": {
     "@types/bun": "latest",
+    "conventional-changelog-cli": "^5.0.0",
     "vitest": "^4.1.5"
   },
   "peerDependencies": {
     "typescript": "^5"
-  }
+  },
+  "engines": {
+    "node": ">=18",
+    "bun": ">=1.0"
+  },
+  "publishConfig": {
+    "access": "public"
+  },
+  "license": "MIT"
 }
