@@ -3,16 +3,19 @@ import { SocketServer } from '../ipc/socket-server'
 import { IpcMethod } from '../ipc/protocol'
 import { NodeProcessBackend } from '../backend/node-process-backend'
 import { RuntimeService } from '../runtime/runtime-service'
+import { Reconciler } from '../core/reconciler'
 
 export class Daemon {
   private registry: Registry
   private server: SocketServer
   private runtimeService: RuntimeService
+  private reconciler: Reconciler
 
   constructor(baseDir?: string) {
     this.registry = new Registry(baseDir)
     this.server = new SocketServer(this.registry)
     this.runtimeService = new RuntimeService(new NodeProcessBackend(), this.registry)
+    this.reconciler = new Reconciler(this.runtimeService)
   }
 
   async start(): Promise<void> {
@@ -22,10 +25,12 @@ export class Daemon {
     this.server.start()
     await this.server.listen()
 
+    this.reconciler.start()
     this.setupSignalHandlers()
   }
 
   async shutdown(): Promise<void> {
+    this.reconciler.stop()
     await this.server.close()
   }
 
@@ -67,6 +72,19 @@ export class Daemon {
     this.server.on(IpcMethod.SelfAlive, async (req) => {
       const params = req.params as { id: string; timestamp: number }
       return { ok: true }
+    })
+
+    // Reconciler
+    this.server.on(IpcMethod.ReconcilerStart, async () => {
+      this.reconciler.start()
+      return { running: this.reconciler.running }
+    })
+    this.server.on(IpcMethod.ReconcilerStop, async () => {
+      this.reconciler.stop()
+      return { running: this.reconciler.running }
+    })
+    this.server.on(IpcMethod.ReconcilerStatus, async () => {
+      return { running: this.reconciler.running }
     })
   }
 

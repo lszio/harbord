@@ -1,6 +1,7 @@
-import { rm, writeFile } from 'node:fs/promises'
+import { rm, writeFile, rename } from 'node:fs/promises'
 import { existsSync } from 'node:fs'
 import { execSync } from 'node:child_process'
+import { join } from 'node:path'
 
 const SDK_ENTRY = 'src/index.ts'
 const CLI_ENTRY = 'src/cli.ts'
@@ -27,7 +28,7 @@ async function buildEsm(): Promise<void> {
     process.exit(1)
   }
 
-  // Add shebang to CLI entry for direct execution
+  // Add shebang to CLI entry
   const cliOut = `${OUT_DIR}/esm/cli.js`
   const cliContent = await Bun.file(cliOut).text()
   await writeFile(cliOut, '#!/usr/bin/env node\n' + cliContent)
@@ -36,9 +37,10 @@ async function buildEsm(): Promise<void> {
 }
 
 async function buildCjs(): Promise<void> {
+  const cjsDir = `${OUT_DIR}/cjs`
   const result = await Bun.build({
     entrypoints: [SDK_ENTRY, CLI_ENTRY],
-    outdir: `${OUT_DIR}/cjs`,
+    outdir: cjsDir,
     target: 'node',
     format: 'cjs',
     sourcemap: 'external',
@@ -50,18 +52,27 @@ async function buildCjs(): Promise<void> {
     process.exit(1)
   }
 
-  // Add shebang to CLI entry
-  const cliOut = `${OUT_DIR}/cjs/cli.js`
+  // Rename .js → .cjs so Node.js treats them as CJS (package.json has "type": "module")
+  for (const output of result.outputs) {
+    if (output.path.endsWith('.js')) {
+      const newPath = output.path.replace(/\.js$/, '.cjs')
+      await rename(output.path, newPath)
+    }
+  }
+
+  // Shebang on the renamed .cjs file
+  const cliOut = join(cjsDir, 'cli.cjs')
   const cliContent = await Bun.file(cliOut).text()
   await writeFile(cliOut, '#!/usr/bin/env node\n' + cliContent)
 
-  console.log(`cjs  → ${OUT_DIR}/cjs/ (${result.outputs.length} outputs)`)
+  console.log(`cjs  → ${cjsDir}/ (${result.outputs.length} outputs)`)
 }
 
 async function buildTypes(): Promise<void> {
-  execSync('tsc --project tsconfig.build.json --declaration --emitDeclarationOnly --outDir dist/types', {
-    stdio: 'inherit',
-  })
+  execSync(
+    'tsc --project tsconfig.build.json --declaration --emitDeclarationOnly --outDir dist/types',
+    { stdio: 'inherit' },
+  )
   console.log('types → dist/types/')
 }
 

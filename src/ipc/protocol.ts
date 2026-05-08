@@ -26,6 +26,9 @@ export const IpcMethod = {
   SelfRegister: 'self.register',
   SelfExpose: 'self.expose',
   SelfAlive: 'self.alive',
+  ReconcilerStart: 'reconciler.start',
+  ReconcilerStop: 'reconciler.stop',
+  ReconcilerStatus: 'reconciler.status',
 } as const
 
 export type IpcMethod = (typeof IpcMethod)[keyof typeof IpcMethod]

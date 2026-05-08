@@ -1,5 +1,4 @@
 import { SocketClient } from '../ipc/socket-client'
-import { SocketServer } from '../ipc/socket-server'
 import { Registry } from '../daemon/registry'
 import { connectOrBootstrap } from '../daemon/bootstrap'
 import { RuntimeServiceProxy } from '../runtime/runtime-service-proxy'
