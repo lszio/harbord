@@ -8,10 +8,63 @@ import { SocketServer } from '../../ipc/socket-server'
 import { SocketClient } from '../../ipc/socket-client'
 import { RuntimeService } from '../runtime-service'
 import { NodeProcessBackend } from '../../backend/node-process-backend'
-import { RuntimeServiceProxy } from '../runtime-service-proxy'
+import { RuntimeServiceProxy, specsMatch } from '../runtime-service-proxy'
 import { IpcMethod } from '../../ipc/protocol'
 
 const echoServer = join(import.meta.dirname, '..', '..', 'backend', '__tests__', 'helpers', 'echo-server.ts')
+
+describe('specsMatch', () => {
+  const base = { id: 'svc', entry: '/a.js' }
+
+  it('should match identical specs', () => {
+    expect(specsMatch(base, { id: 'svc', entry: '/a.js' })).toBe(true)
+  })
+
+  it('should not match different entry', () => {
+    expect(specsMatch(base, { id: 'svc', entry: '/b.js' })).toBe(false)
+  })
+
+  it('should match same args', () => {
+    expect(
+      specsMatch(
+        { ...base, args: ['--port', '8080'] },
+        { ...base, args: ['--port', '8080'] },
+      ),
+    ).toBe(true)
+  })
+
+  it('should not match different args', () => {
+    expect(
+      specsMatch(
+        { ...base, args: ['--port', '8080'] },
+        { ...base, args: ['--port', '9090'] },
+      ),
+    ).toBe(false)
+  })
+
+  it('should match same env', () => {
+    expect(
+      specsMatch(
+        { ...base, env: { FOO: '1' } },
+        { ...base, env: { FOO: '1' } },
+      ),
+    ).toBe(true)
+  })
+
+  it('should not match different env', () => {
+    expect(
+      specsMatch(
+        { ...base, env: { FOO: '1' } },
+        { ...base, env: { FOO: '2' } },
+      ),
+    ).toBe(false)
+  })
+
+  it('should handle undefined args and env as empty', () => {
+    expect(specsMatch(base, { ...base, args: [] })).toBe(true)
+    expect(specsMatch(base, { ...base, env: {} })).toBe(true)
+  })
+})
 
 describe('RuntimeServiceProxy', () => {
   let registry: Registry
@@ -24,7 +77,6 @@ describe('RuntimeServiceProxy', () => {
     registry = new Registry(baseDir)
     await registry.init()
 
-    // Set up IPC with runtime service
     const backend = new NodeProcessBackend()
     const runtimeService = new RuntimeService(backend, registry)
 
@@ -39,6 +91,10 @@ describe('RuntimeServiceProxy', () => {
     server.on(IpcMethod.RuntimeInspect, async (req) => {
       const params = req.params as { id: string }
       return runtimeService.inspect(params.id)
+    })
+    server.on(IpcMethod.RuntimeGetSpec, async (req) => {
+      const params = req.params as { id: string }
+      return runtimeService.getSpec(params.id) ?? null
     })
     server.start()
     await server.listen()
@@ -93,5 +149,55 @@ describe('RuntimeServiceProxy', () => {
     const state = await proxy.refresh()
     expect(state).toBeNull()
     expect(proxy.state).toBeNull()
+  })
+
+  it('should handle markConflicted and attach', async () => {
+    // First start a runtime
+    const p1 = new RuntimeServiceProxy(client, 'svc')
+    await p1.up({ id: 'svc', entry: echoServer })
+
+    // Create a proxy with a different spec — mark as conflicted
+    const p2 = new RuntimeServiceProxy(client, 'svc')
+    p2.markConflicted(
+      { id: 'svc', entry: echoServer },
+      { id: 'svc', entry: '/different.js' },
+    )
+
+    expect(p2.conflicted).toBe(true)
+    expect(p2.existingSpec?.entry).toBe(echoServer)
+    expect(p2.requestedSpec?.entry).toBe('/different.js')
+
+    // Attach to existing
+    const state = await p2.attach()
+    expect(state?.status).toBe('running')
+    expect(p2.conflicted).toBe(false)
+  })
+
+  it('should handle replace', async () => {
+    // First start a runtime
+    const p1 = new RuntimeServiceProxy(client, 'svc')
+    await p1.up({ id: 'svc', entry: echoServer })
+
+    // Replace
+    const p2 = new RuntimeServiceProxy(client, 'svc')
+    p2.markConflicted(
+      { id: 'svc', entry: echoServer },
+      { id: 'svc', entry: echoServer },
+    )
+    const state = await p2.replace()
+    expect(state.status).toBe('running')
+    expect(p2.conflicted).toBe(false)
+  })
+
+  it('should handle ignore', () => {
+    const proxy = new RuntimeServiceProxy(client, 'svc')
+    proxy.markConflicted(
+      { id: 'svc', entry: echoServer },
+      { id: 'svc', entry: '/different.js' },
+    )
+    expect(proxy.conflicted).toBe(true)
+
+    proxy.ignore()
+    expect(proxy.conflicted).toBe(false)
   })
 })

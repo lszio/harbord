@@ -1,4 +1,5 @@
 import type { RuntimeService } from '../runtime/runtime-service'
+import type { HeartbeatTracker } from './heartbeat'
 
 export const DEFAULT_RECONCILE_INTERVAL = 5000
 
@@ -9,6 +10,7 @@ export class Reconciler {
   constructor(
     private runtimeService: RuntimeService,
     private interval = DEFAULT_RECONCILE_INTERVAL,
+    private heartbeats?: HeartbeatTracker,
   ) {}
 
   get running(): boolean {
@@ -57,6 +59,15 @@ export class Reconciler {
       if (state && state.status === 'crashed') {
         await this.runtimeService.start(spec)
         continue
+      }
+
+      // Stop if heartbeat expired (owner disappeared)
+      if (this.heartbeats && state && (state.status === 'running' || state.status === 'starting')) {
+        if (this.heartbeats.isExpired(id)) {
+          await this.runtimeService.stop(id)
+          this.heartbeats.clear(id)
+          continue
+        }
       }
 
       // Check conditions

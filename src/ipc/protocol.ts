@@ -21,6 +21,7 @@ export const IpcMethod = {
   RuntimeStart: 'runtime.start',
   RuntimeStop: 'runtime.stop',
   RuntimeInspect: 'runtime.inspect',
+  RuntimeGetSpec: 'runtime.get-spec',
   RuntimeLogs: 'runtime.logs',
   EventSubscribe: 'event.subscribe',
   SelfRegister: 'self.register',

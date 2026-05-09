@@ -4,18 +4,20 @@ import { IpcMethod } from '../ipc/protocol'
 import { NodeProcessBackend } from '../backend/node-process-backend'
 import { RuntimeService } from '../runtime/runtime-service'
 import { Reconciler } from '../core/reconciler'
+import { HeartbeatTracker } from '../core/heartbeat'
 
 export class Daemon {
   private registry: Registry
   private server: SocketServer
   private runtimeService: RuntimeService
   private reconciler: Reconciler
+  private heartbeats = new HeartbeatTracker()
 
   constructor(baseDir?: string) {
     this.registry = new Registry(baseDir)
     this.server = new SocketServer(this.registry)
     this.runtimeService = new RuntimeService(new NodeProcessBackend(), this.registry)
-    this.reconciler = new Reconciler(this.runtimeService)
+    this.reconciler = new Reconciler(this.runtimeService, undefined, this.heartbeats)
   }
 
   async start(): Promise<void> {
@@ -56,12 +58,17 @@ export class Daemon {
       const params = req.params as { id: string }
       return this.runtimeService.inspect(params.id)
     })
+    this.server.on(IpcMethod.RuntimeGetSpec, async (req) => {
+      const params = req.params as { id: string }
+      return this.runtimeService.getSpec(params.id) ?? null
+    })
 
     // Self registration
     const selfMetadata = new Map<string, Record<string, unknown>>()
     this.server.on(IpcMethod.SelfRegister, async (req) => {
       const params = req.params as { id: string }
       selfMetadata.set(params.id, {})
+      this.heartbeats.beat(params.id)
       return { registered: true }
     })
     this.server.on(IpcMethod.SelfExpose, async (req) => {
@@ -71,6 +78,7 @@ export class Daemon {
     })
     this.server.on(IpcMethod.SelfAlive, async (req) => {
       const params = req.params as { id: string; timestamp: number }
+      this.heartbeats.beat(params.id)
       return { ok: true }
     })
 
