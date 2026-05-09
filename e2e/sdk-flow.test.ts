@@ -24,6 +24,15 @@ async function waitForProcessExit(proc: ChildProcess, timeout = 3000): Promise<v
   })
 }
 
+async function waitForSocketGone(socketPath: string, timeout = 3000, interval = 100): Promise<void> {
+  const deadline = Date.now() + timeout
+  while (Date.now() < deadline) {
+    if (!existsSync(socketPath)) return
+    await new Promise((r) => setTimeout(r, interval))
+  }
+  throw new Error(`Socket still exists after ${timeout}ms: ${socketPath}`)
+}
+
 interface DaemonCtx {
   proc: ChildProcess
   baseDir: string
@@ -176,5 +185,35 @@ describe('Harbor SDK (E2E)', () => {
     await svcA.down()
     await svcB.down()
     await h.disconnect()
+  })
+
+  it('should return daemon status via harbor.daemon.status()', async () => {
+    const h = await harbor()
+
+    const info = await h.daemon.status()
+    expect(info.pid).toBeGreaterThan(0)
+    expect(info.uptime).toBeGreaterThanOrEqual(0)
+    expect(info.reconcilerRunning).toBe(true)
+    expect(Array.isArray(info.registered)).toBe(true)
+
+    await h.disconnect()
+  })
+
+  it('should gracefully stop daemon via harbor.daemon.stop()', async () => {
+    const h = await harbor()
+
+    // Start a runtime first
+    const svc = await h.service('stop-test', {
+      id: 'stop-test',
+      entry: ws('fixtures/echo-server.cjs'),
+    })
+    expect(svc.state.status).toBe('running')
+
+    // Stop the daemon — the runtime should be stopped too
+    const result = await h.daemon.stop()
+    expect(result.shuttingDown).toBe(true)
+
+    // Daemon process should exit, socket should be cleaned up
+    await waitForSocketGone(daemon.socketPath, 3000)
   })
 })

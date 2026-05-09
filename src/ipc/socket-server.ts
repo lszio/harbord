@@ -38,7 +38,13 @@ export class SocketServer {
     }
     this.connections.clear()
     return new Promise((resolve) => {
-      this.server.close(() => resolve())
+      this.server.close(async () => {
+        const socketPath = this.registry.getSocketPath()
+        if (existsSync(socketPath)) {
+          await unlink(socketPath).catch(() => {})
+        }
+        resolve()
+      })
     })
   }
 

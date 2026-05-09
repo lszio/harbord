@@ -32,3 +32,9 @@ export { RuntimeServiceProxy } from './runtime/runtime-service-proxy'
 // SDK
 export { Harbor } from './sdk/harbor'
 export { Self } from './sdk/self'
+export { DaemonControl } from './sdk/daemon-control'
+export type { DaemonInfo } from './sdk/daemon-control'
+
+// Core
+export { Reconciler } from './core/reconciler'
+export { HeartbeatTracker } from './core/heartbeat'

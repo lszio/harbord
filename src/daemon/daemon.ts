@@ -12,12 +12,25 @@ export class Daemon {
   private runtimeService: RuntimeService
   private reconciler: Reconciler
   private heartbeats = new HeartbeatTracker()
+  private _startedAt = 0
 
   constructor(baseDir?: string) {
     this.registry = new Registry(baseDir)
     this.server = new SocketServer(this.registry)
     this.runtimeService = new RuntimeService(new NodeProcessBackend(), this.registry)
     this.reconciler = new Reconciler(this.runtimeService, undefined, this.heartbeats)
+  }
+
+  get running(): boolean {
+    return this._startedAt > 0
+  }
+
+  get startedAt(): number {
+    return this._startedAt
+  }
+
+  get uptime(): number {
+    return this._startedAt > 0 ? Date.now() - this._startedAt : 0
   }
 
   async start(): Promise<void> {
@@ -27,13 +40,22 @@ export class Daemon {
     this.server.start()
     await this.server.listen()
 
+    this._startedAt = Date.now()
     this.reconciler.start()
     this.setupSignalHandlers()
   }
 
   async shutdown(): Promise<void> {
     this.reconciler.stop()
+
+    // Stop all running runtimes gracefully
+    const running = this.runtimeService.listRunning()
+    for (const id of running) {
+      await this.runtimeService.stop(id).catch(() => {})
+    }
+
     await this.server.close()
+    this._startedAt = 0
   }
 
   private setupHandlers(): void {
@@ -93,6 +115,34 @@ export class Daemon {
     })
     this.server.on(IpcMethod.ReconcilerStatus, async () => {
       return { running: this.reconciler.running }
+    })
+
+    // Daemon control
+    this.server.on(IpcMethod.DaemonStatus, async () => {
+      return {
+        pid: process.pid,
+        uptime: this.uptime,
+        startedAt: this._startedAt,
+        reconcilerRunning: this.reconciler.running,
+        runtimes: this.runtimeService.listRunning().length,
+        registered: await this.registry.listIds(),
+      }
+    })
+    this.server.on(IpcMethod.DaemonShutdown, async () => {
+      // Respond first so the client gets the ack before the process exits
+      const info = {
+        pid: process.pid,
+        uptime: this.uptime,
+        runtimes: this.runtimeService.listRunning().length,
+      }
+
+      // Schedule shutdown after responding
+      setImmediate(async () => {
+        await this.shutdown()
+        process.exit(0)
+      })
+
+      return { shuttingDown: true, ...info }
     })
   }
 

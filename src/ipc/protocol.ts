@@ -30,6 +30,8 @@ export const IpcMethod = {
   ReconcilerStart: 'reconciler.start',
   ReconcilerStop: 'reconciler.stop',
   ReconcilerStatus: 'reconciler.status',
+  DaemonStatus: 'daemon.status',
+  DaemonShutdown: 'daemon.shutdown',
 } as const
 
 export type IpcMethod = (typeof IpcMethod)[keyof typeof IpcMethod]

@@ -2,16 +2,26 @@ import { SocketClient } from '../ipc/socket-client'
 import { Registry } from '../daemon/registry'
 import { connectOrBootstrap } from '../daemon/bootstrap'
 import { RuntimeServiceProxy, specsMatch } from '../runtime/runtime-service-proxy'
+import { DaemonControl } from './daemon-control'
 import { Self } from './self'
 import type { RuntimeSpec } from '../core/runtime-spec'
 
 export class Harbor {
   private _client: SocketClient | null = null
+  private _daemon: DaemonControl | null = null
 
   constructor() {}
 
   get connected(): boolean {
     return this._client?.isConnected ?? false
+  }
+
+  /** Access daemon control (status, stop). */
+  get daemon(): DaemonControl {
+    if (!this._daemon) {
+      throw new Error('Not connected. Call connect() first.')
+    }
+    return this._daemon
   }
 
   /**
@@ -21,6 +31,7 @@ export class Harbor {
     const reg = registry ?? new Registry()
     await reg.init()
     this._client = await connectOrBootstrap(reg)
+    this._daemon = new DaemonControl(this._client)
   }
 
   /**
@@ -36,7 +47,6 @@ export class Harbor {
     const proxy = new RuntimeServiceProxy(this._client!, id)
 
     if (spec) {
-      // Check if runtime already exists with a different spec
       const existingSpec = await this._client!.request<RuntimeSpec | null>(
         'runtime.get-spec',
         { id },
@@ -47,10 +57,8 @@ export class Harbor {
         return proxy
       }
 
-      // Start or attach to existing
       await proxy.up(spec)
     } else {
-      // Just inspect — may return null
       await proxy.refresh()
     }
 
@@ -74,6 +82,7 @@ export class Harbor {
       await this._client.close()
       this._client = null
     }
+    this._daemon = null
   }
 
   private async ensureConnected(): Promise<void> {
