@@ -124,7 +124,7 @@ describe('Daemon Lifecycle (E2E)', () => {
 
     const state: { status: string; pid: number } = await c.request('runtime.start', {
       id: 'e2e-svc',
-      entry: ws('fixtures/echo-server.cjs'),
+      entry: ws('e2e/fixtures/echo-server.cjs'),
     })
     expect(state.status).toBe('running')
     expect(state.pid).toBeGreaterThan(0)
@@ -138,7 +138,7 @@ describe('Daemon Lifecycle (E2E)', () => {
   it('should inspect a running runtime', async () => {
     const c = await client()
 
-    await c.request('runtime.start', { id: 'e2e-svc', entry: ws('fixtures/echo-server.cjs') })
+    await c.request('runtime.start', { id: 'e2e-svc', entry: ws('e2e/fixtures/echo-server.cjs') })
 
     const state: { status: string; pid: number } = await c.request('runtime.inspect', { id: 'e2e-svc' })
     expect(state.status).toBe('running')
@@ -183,7 +183,7 @@ describe('Daemon Lifecycle (E2E)', () => {
     await c1.connect()
     await c2.connect()
 
-    await c1.request('runtime.start', { id: 'shared-svc', entry: ws('fixtures/echo-server.cjs') })
+    await c1.request('runtime.start', { id: 'shared-svc', entry: ws('e2e/fixtures/echo-server.cjs') })
 
     const [ids1, ids2]: [string[], string[]] = await Promise.all([
       c1.request('registry.list'),
@@ -204,7 +204,7 @@ describe('Daemon Lifecycle (E2E)', () => {
 
     const state: { status: string } = await c.request('runtime.start', {
       id: 'crash-svc',
-      entry: ws('fixtures/crash-immediately.cjs'),
+      entry: ws('e2e/fixtures/crash-immediately.cjs'),
     })
     expect(state.status).toBe('crashed')
 

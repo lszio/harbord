@@ -49,7 +49,7 @@ describe('Harbor SDK (E2E)', () => {
       // 2. Start a service
       const svc = await h.service('e2e-svc', {
         id: 'e2e-svc',
-        entry: ws('fixtures/echo-server.cjs'),
+        entry: ws('e2e/fixtures/echo-server.cjs'),
       })
       expect(svc.state.status).toBe('running')
 
@@ -84,13 +84,13 @@ describe('Harbor SDK (E2E)', () => {
       // Start initial
       await h.service('conflict-test', {
         id: 'conflict-test',
-        entry: ws('fixtures/echo-server.cjs'),
+        entry: ws('e2e/fixtures/echo-server.cjs'),
       })
 
       // Try starting with different spec
       const svc = await h.service('conflict-test', {
         id: 'conflict-test',
-        entry: ws('fixtures/echo-server.cjs'),
+        entry: ws('e2e/fixtures/echo-server.cjs'),
         args: ['--debug'],
       })
 
