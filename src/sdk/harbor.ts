@@ -2,15 +2,27 @@ import { SocketClient } from '../ipc/socket-client'
 import { Registry } from '../daemon/registry'
 import { connectOrBootstrap } from '../daemon/bootstrap'
 import { RuntimeServiceProxy, specsMatch } from '../runtime/runtime-service-proxy'
-import { DaemonControl } from './daemon-control'
+import { DaemonControl, type ClientProvider } from './daemon-control'
 import { Self } from './self'
 import type { RuntimeSpec } from '../core/runtime-spec'
 
-export class Harbor {
+export interface HarborOptions {
+  /** Base directory for harbord state and socket. Defaults to HARBORD_HOME or ~/.harbord */
+  home?: string
+  /** Whether to automatically start the daemon if not running. Defaults to true. */
+  autoBootstrap?: boolean
+  /** Timeout for waiting for the daemon to start (ms). */
+  timeout?: number
+  /** Path to the harbord CLI entry point. Used for auto-bootstrapping. */
+  daemonEntry?: string
+}
+
+export class Harbor implements ClientProvider {
   private _client: SocketClient | null = null
   private _daemon: DaemonControl | null = null
+  private _registry: Registry | null = null
 
-  constructor() {}
+  constructor(private options: HarborOptions = {}) {}
 
   get connected(): boolean {
     return this._client?.isConnected ?? false
@@ -19,7 +31,7 @@ export class Harbor {
   /** Access daemon control (status, stop). */
   get daemon(): DaemonControl {
     if (!this._daemon) {
-      throw new Error('Not connected. Call connect() first.')
+      this._daemon = new DaemonControl(this)
     }
     return this._daemon
   }
@@ -28,10 +40,20 @@ export class Harbor {
    * Ensure connection to the daemon, auto-bootstrapping if needed.
    */
   async connect(registry?: Registry): Promise<void> {
-    const reg = registry ?? new Registry()
-    await reg.init()
-    this._client = await connectOrBootstrap(reg)
-    this._daemon = new DaemonControl(this._client)
+    if (registry) {
+      this._registry = registry
+    }
+
+    if (!this._registry) {
+      this._registry = new Registry(this.options.home)
+      await this._registry.init()
+    }
+
+    this._client = await connectOrBootstrap(this._registry, {
+      timeout: this.options.timeout,
+      autoBootstrap: this.options.autoBootstrap ?? true,
+      daemonEntry: this.options.daemonEntry,
+    })
   }
 
   /**
@@ -42,12 +64,11 @@ export class Harbor {
    * and choose a recovery strategy: attach(), replace(), or ignore().
    */
   async service(id: string, spec?: RuntimeSpec): Promise<RuntimeServiceProxy> {
-    await this.ensureConnected()
-
-    const proxy = new RuntimeServiceProxy(this._client!, id)
+    const client = await this.getClient()
+    const proxy = new RuntimeServiceProxy(client, id)
 
     if (spec) {
-      const existingSpec = await this._client!.request<RuntimeSpec | null>(
+      const existingSpec = await client.request<RuntimeSpec | null>(
         'runtime.get-spec',
         { id },
       )
@@ -69,9 +90,9 @@ export class Harbor {
    * Get a Self handle for the current runtime worker.
    */
   async self(runtimeId: string): Promise<Self> {
-    await this.ensureConnected()
-    await this._client!.request('self.register', { id: runtimeId })
-    return new Self(this._client!, runtimeId)
+    const client = await this.getClient()
+    await client.request('self.register', { id: runtimeId })
+    return new Self(client, runtimeId)
   }
 
   /**
@@ -82,12 +103,16 @@ export class Harbor {
       await this._client.close()
       this._client = null
     }
-    this._daemon = null
   }
 
-  private async ensureConnected(): Promise<void> {
+  /**
+   * Implements ClientProvider.
+   * Ensures connection and returns the SocketClient.
+   */
+  async getClient(): Promise<SocketClient> {
     if (!this._client || !this._client.isConnected) {
       await this.connect()
     }
+    return this._client!
   }
 }

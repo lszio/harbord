@@ -10,16 +10,33 @@ export interface DaemonInfo {
   registered: string[]
 }
 
+/**
+ * Interface for something that can provide a connected SocketClient.
+ * This allows DaemonControl to lazily ensure connection.
+ */
+export interface ClientProvider {
+  getClient(): Promise<SocketClient>
+}
+
 export class DaemonControl {
-  constructor(private client: SocketClient) {}
+  constructor(private provider: SocketClient | ClientProvider) {}
 
   /** Get daemon status and runtime info. */
   async status(): Promise<DaemonInfo> {
-    return this.client.request<DaemonInfo>(IpcMethod.DaemonStatus)
+    const client = await this.ensureClient()
+    return client.request<DaemonInfo>(IpcMethod.DaemonStatus)
   }
 
   /** Gracefully shut down the daemon and all runtimes. */
   async stop(): Promise<{ shuttingDown: boolean }> {
-    return this.client.request<{ shuttingDown: boolean }>(IpcMethod.DaemonShutdown)
+    const client = await this.ensureClient()
+    return client.request<{ shuttingDown: boolean }>(IpcMethod.DaemonShutdown)
+  }
+
+  private async ensureClient(): Promise<SocketClient> {
+    if (this.provider instanceof SocketClient) {
+      return this.provider
+    }
+    return this.provider.getClient()
   }
 }
