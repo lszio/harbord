@@ -24,6 +24,7 @@
   "scripts": {
     "dev": "bun run src/cli.ts --daemon",
     "build": "bun run build.ts",
+    "build:all": "bun run build.ts",
     "clean": "rm -rf dist/ coverage/",
     "prepublishOnly": "bun run build",
     "version": "conventional-changelog -p angular -i CHANGELOG.md -s && git add CHANGELOG.md",

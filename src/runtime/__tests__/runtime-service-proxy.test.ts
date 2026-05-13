@@ -11,7 +11,7 @@ import { NodeProcessBackend } from '../../backend/node-process-backend'
 import { RuntimeServiceProxy, specsMatch } from '../runtime-service-proxy'
 import { IpcMethod } from '../../ipc/protocol'
 
-const echoServer = join(import.meta.dirname, '..', '..', 'backend', '__tests__', 'helpers', 'echo-server.ts')
+const echoServer = join(import.meta.dirname, '..', '..', 'backend', '__tests__', 'helpers', 'echo-server.cjs')
 
 describe('specsMatch', () => {
   const base = { id: 'svc', entry: '/a.js' }

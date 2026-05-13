@@ -8,8 +8,8 @@ import { NodeProcessBackend } from '../../backend/node-process-backend'
 import { Registry } from '../../daemon/registry'
 import type { RuntimeSpec } from '../../core/runtime-spec'
 
-const echoServer = join(import.meta.dirname, '..', '..', 'backend', '__tests__', 'helpers', 'echo-server.ts')
-const crashHelper = join(import.meta.dirname, '..', '..', 'backend', '__tests__', 'helpers', 'crash-immediately.ts')
+const echoServer = join(import.meta.dirname, '..', '..', 'backend', '__tests__', 'helpers', 'echo-server.cjs')
+const crashHelper = join(import.meta.dirname, '..', '..', 'backend', '__tests__', 'helpers', 'crash-immediately.cjs')
 
 describe('RuntimeService', () => {
   let backend: NodeProcessBackend

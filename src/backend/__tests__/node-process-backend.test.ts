@@ -3,7 +3,7 @@ import { join } from 'node:path'
 import { NodeProcessBackend } from '../node-process-backend'
 import type { RuntimeSpec } from '../../core/runtime-spec'
 
-const echoServer = join(import.meta.dirname, 'helpers', 'echo-server.ts')
+const echoServer = join(import.meta.dirname, 'helpers', 'echo-server.cjs')
 
 describe('NodeProcessBackend', () => {
   let backend: NodeProcessBackend

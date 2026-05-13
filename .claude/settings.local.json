@@ -8,7 +8,11 @@
       "Bash(tsc --noEmit)",
       "Bash(bun *)",
       "Bash(timeout 3 node dist/cjs/cli.cjs --daemon)",
-      "Bash(echo \"exit: $?\")"
+      "Bash(echo \"exit: $?\")",
+      "Bash(node -e \"console.log\\(process.execPath\\)\")",
+      "Bash(node -e \"console.log\\('node works'\\)\")",
+      "Bash(/usr/bin/bun /home/lszio/Baosight/harbord/src/backend/__tests__/helpers/echo-server.ts)",
+      "Bash(kill %1)"
     ]
   }
 }
