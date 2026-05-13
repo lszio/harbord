@@ -13,13 +13,31 @@
     }
   },
   "bin": {
-    "harbord": "./dist/cjs/cli.cjs"
+    "harbord": "dist/cjs/cli.cjs"
   },
   "files": [
     "dist/",
     "README.md",
     "LICENSE"
   ],
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/lszio/harbord.git"
+  },
+  "keywords": [
+    "supervisor",
+    "daemon",
+    "runtime",
+    "process-manager",
+    "node",
+    "reconciler"
+  ],
+  "author": "lszio",
+  "license": "MIT",
+  "bugs": {
+    "url": "https://github.com/lszio/harbord/issues"
+  },
+  "homepage": "https://github.com/lszio/harbord#readme",
   "private": false,
   "scripts": {
     "dev": "bun run src/cli.ts --daemon",
@@ -47,6 +65,5 @@
   },
   "publishConfig": {
     "access": "public"
-  },
-  "license": "MIT"
+  }
 }
