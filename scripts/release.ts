@@ -28,7 +28,7 @@ async function main() {
   const pkg = JSON.parse(readFileSync(pkgPath, "utf-8"));
   const currentVersion = pkg.version;
 
-  let newVersion = values.version;
+  let newVersion = values.version as string;
 
   if (!newVersion) {
     if (values.yes) {
