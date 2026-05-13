@@ -1,6 +1,6 @@
 {
   "name": "harbord",
-  "version": "0.1.0",
+  "version": "0.1.1",
   "description": "Declarative Local Runtime Supervisor for Node.js Applications",
   "type": "module",
   "module": "dist/esm/index.js",
