@@ -35,6 +35,10 @@ async function startDaemon(): Promise<{
   const baseDir = mkdtempSync(join(tmpdir(), `harbord-e2e-${daemonIdx++}-`))
   const cliPath = ws('dist/cjs/cli.cjs')
 
+  if (!existsSync(cliPath)) {
+    throw new Error(`CLI not found at ${cliPath}. Did you run build?`)
+  }
+
   const proc = spawn('node', [cliPath, '--daemon'], {
     env: { ...process.env, HARBORD_HOME: baseDir },
     stdio: 'pipe',
@@ -73,7 +77,9 @@ describe('Daemon Lifecycle (E2E)', () => {
   })
 
   afterEach(async () => {
-    await daemon.cleanup()
+    if (daemon) {
+      await daemon.cleanup()
+    }
   })
 
   // Shortcut: create a connected client

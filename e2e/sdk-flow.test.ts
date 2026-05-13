@@ -46,6 +46,10 @@ async function startDaemon(): Promise<DaemonCtx> {
   const baseDir = mkdtempSync(join(tmpdir(), `harbord-e2e-sdk-${daemonIdx++}-`))
   const cliPath = ws('dist/cjs/cli.cjs')
 
+  if (!existsSync(cliPath)) {
+    throw new Error(`CLI not found at ${cliPath}. Did you run build?`)
+  }
+
   const proc = spawn('node', [cliPath, '--daemon'], {
     env: { ...process.env, HARBORD_HOME: baseDir },
     stdio: 'pipe',
@@ -84,7 +88,9 @@ describe('Harbor SDK (E2E)', () => {
   })
 
   afterEach(async () => {
-    await daemon.cleanup()
+    if (daemon) {
+      await daemon.cleanup()
+    }
   })
 
   async function harbor() {
