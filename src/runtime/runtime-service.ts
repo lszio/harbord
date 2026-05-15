@@ -48,13 +48,14 @@ export class RuntimeService {
         return crashed
       }
 
-      this.states.set(spec.id, state)
-      await this.registry.saveState(spec.id, state)
+      this.states.set(spec.id, { ...state, id: spec.id })
+      await this.registry.saveState(spec.id, { ...state, id: spec.id })
 
-      return state
+      return { ...state, id: spec.id }
     } catch (error) {
       const crashed: RuntimeState = {
         status: 'crashed',
+        id: spec.id,
         metadata: {
           error: error instanceof Error ? error.message : String(error),
         },
@@ -66,13 +67,13 @@ export class RuntimeService {
   }
 
   async stop(id: string): Promise<RuntimeState> {
-    const stopping: RuntimeState = { status: 'stopping' }
+    const stopping: RuntimeState = { status: 'stopping', id }
     this.states.set(id, stopping)
     await this.registry.saveState(id, stopping)
 
     await this.backend.stop(id)
 
-    const stopped: RuntimeState = { status: 'stopped' }
+    const stopped: RuntimeState = { status: 'stopped', id }
     this.states.set(id, stopped)
     await this.registry.saveState(id, stopped)
     
@@ -89,16 +90,19 @@ export class RuntimeService {
     // Check if backend has more recent state
     const backendState = await this.backend.inspect(id)
     if (backendState.status !== 'idle') {
-      this.states.set(id, backendState)
-      return backendState
+      const stateWithId = { ...backendState, id }
+      this.states.set(id, stateWithId)
+      return stateWithId
     }
 
     // Fall back to in-memory, then registry
     const state = this.states.get(id) ?? await this.registry.loadState(id)
     if (state) {
-      this.states.set(id, state)
+      const stateWithId = { ...state, id }
+      this.states.set(id, stateWithId)
+      return stateWithId
     }
-    return state
+    return null
   }
 
   logs(id: string): AsyncIterable<RuntimeEvent> {

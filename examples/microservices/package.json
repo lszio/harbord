@@ -1,0 +1,16 @@
+{
+  "name": "example-microservices",
+  "version": "1.0.0",
+  "private": true,
+  "type": "module",
+  "dependencies": {
+    "harbord": "file:../.."
+  },
+  "devDependencies": {
+    "vitest": "^4.1.5"
+  },
+  "scripts": {
+    "test": "vitest run",
+    "start": "bun run src/dashboard.ts"
+  }
+}

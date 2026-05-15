@@ -42,6 +42,10 @@ export class Daemon {
 
     this._startedAt = Date.now()
     this.reconciler.start()
+
+    // Release bootstrap lock if we are the one who started
+    await this.registry.releaseBootstrapLock()
+
     this.setupSignalHandlers()
   }
 
@@ -68,9 +72,43 @@ export class Daemon {
       return this.registry.loadState(params.id)
     })
 
+    // Self registration
+    const selfMetadata = new Map<string, Record<string, unknown>>()
+    this.server.on(IpcMethod.SelfRegister, async (req) => {
+      const params = req.params as { id: string }
+      if (!selfMetadata.has(params.id)) {
+        selfMetadata.set(params.id, {})
+      }
+      this.heartbeats.beat(params.id)
+      return { registered: true }
+    })
+    this.server.on(IpcMethod.SelfExpose, async (req) => {
+      const params = req.params as { id: string; metadata: Record<string, unknown> }
+      const current = selfMetadata.get(params.id) ?? {}
+      selfMetadata.set(params.id, { ...current, ...params.metadata })
+      return { exposed: true }
+    })
+    this.server.on(IpcMethod.SelfAlive, async (req) => {
+      const params = req.params as { id: string; timestamp: number }
+      this.heartbeats.beat(params.id)
+      return { ok: true }
+    })
+
     // Runtime lifecycle
     this.server.on(IpcMethod.RuntimeStart, async (req) => {
-      return this.runtimeService.start(req.params as Parameters<typeof this.runtimeService.start>[0])
+      const state = await this.runtimeService.start(
+        req.params as Parameters<typeof this.runtimeService.start>[0],
+      )
+      
+      const effectiveState = state ?? { status: 'crashed', metadata: { error: 'Runtime failed to start' } }
+
+      if (effectiveState && selfMetadata.has(effectiveState.id ?? (req.params as any).id)) {
+        effectiveState.metadata = {
+          ...effectiveState.metadata,
+          ...selfMetadata.get(effectiveState.id ?? (req.params as any).id),
+        }
+      }
+      return effectiveState
     })
     this.server.on(IpcMethod.RuntimeStop, async (req) => {
       const params = req.params as { id: string }
@@ -78,30 +116,16 @@ export class Daemon {
     })
     this.server.on(IpcMethod.RuntimeInspect, async (req) => {
       const params = req.params as { id: string }
-      return this.runtimeService.inspect(params.id)
+      const state = await this.runtimeService.inspect(params.id)
+      
+      if (state && selfMetadata.has(params.id)) {
+        state.metadata = { ...state.metadata, ...selfMetadata.get(params.id) }
+      }
+      return state
     })
     this.server.on(IpcMethod.RuntimeGetSpec, async (req) => {
       const params = req.params as { id: string }
       return this.runtimeService.getSpec(params.id)
-    })
-
-    // Self registration
-    const selfMetadata = new Map<string, Record<string, unknown>>()
-    this.server.on(IpcMethod.SelfRegister, async (req) => {
-      const params = req.params as { id: string }
-      selfMetadata.set(params.id, {})
-      this.heartbeats.beat(params.id)
-      return { registered: true }
-    })
-    this.server.on(IpcMethod.SelfExpose, async (req) => {
-      const params = req.params as { id: string; metadata: Record<string, unknown> }
-      selfMetadata.set(params.id, params.metadata)
-      return { exposed: true }
-    })
-    this.server.on(IpcMethod.SelfAlive, async (req) => {
-      const params = req.params as { id: string; timestamp: number }
-      this.heartbeats.beat(params.id)
-      return { ok: true }
     })
 
     // Reconciler

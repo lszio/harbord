@@ -1,4 +1,4 @@
-import { mkdir, readdir, readFile, rename, rm, unlink, writeFile } from 'node:fs/promises'
+import { mkdir, readdir, readFile, rename, rm, stat, unlink, writeFile } from 'node:fs/promises'
 import { existsSync } from 'node:fs'
 import { join } from 'node:path'
 import { homedir } from 'node:os'
@@ -81,6 +81,18 @@ export class Registry {
 
   async releaseBootstrapLock(): Promise<void> {
     await rm(this.bootstrapLockPath, { recursive: true, force: true })
+  }
+
+  /**
+   * Get the modification time of the bootstrap lock.
+   */
+  async getLockMtime(): Promise<number> {
+    try {
+      const s = await stat(this.bootstrapLockPath)
+      return s.mtimeMs
+    } catch {
+      return 0
+    }
   }
 
   getSocketPath(): string {

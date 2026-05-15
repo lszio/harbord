@@ -8,6 +8,7 @@
   "types": "dist/types/index.d.ts",
   "exports": {
     ".": {
+      "types": "./dist/types/index.d.ts",
       "import": "./dist/esm/index.js",
       "require": "./dist/cjs/index.cjs"
     }
@@ -39,6 +40,9 @@
   },
   "homepage": "https://github.com/lszio/harbord#readme",
   "private": false,
+  "workspaces": [
+    "examples/*"
+  ],
   "scripts": {
     "dev": "bun run src/cli.ts --daemon",
     "build": "bun run build.ts",

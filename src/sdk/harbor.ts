@@ -63,22 +63,26 @@ export class Harbor implements ClientProvider {
    * returns a *conflicted* proxy. The caller can inspect `.conflicted`
    * and choose a recovery strategy: attach(), replace(), or ignore().
    */
-  async service(id: string, spec?: RuntimeSpec): Promise<RuntimeServiceProxy> {
+  async service(
+    id: string,
+    spec?: Omit<RuntimeSpec, 'id'> & { id?: string },
+  ): Promise<RuntimeServiceProxy> {
     const client = await this.getClient()
     const proxy = new RuntimeServiceProxy(client, id)
 
     if (spec) {
+      const fullSpec = { ...spec, id } as RuntimeSpec
       const existingSpec = await client.request<RuntimeSpec | null>(
         'runtime.get-spec',
         { id },
       )
 
-      if (existingSpec && !specsMatch(existingSpec, spec)) {
-        proxy.markConflicted(existingSpec, spec)
+      if (existingSpec && !specsMatch(existingSpec, fullSpec)) {
+        proxy.markConflicted(existingSpec, fullSpec)
         return proxy
       }
 
-      await proxy.up(spec)
+      await proxy.up(fullSpec)
     } else {
       await proxy.refresh()
     }

@@ -1,6 +1,6 @@
 import { spawn } from 'node:child_process'
 import { access } from 'node:fs/promises'
-import { join, dirname } from 'node:path'
+import { join, dirname, resolve } from 'node:path'
 import { fileURLToPath } from 'node:url'
 import { SocketClient } from '../ipc/socket-client'
 import type { Registry } from './registry'
@@ -19,35 +19,50 @@ async function socketExists(socketPath: string): Promise<boolean> {
 
 /**
  * Detect the harbord CLI entry point.
- * In production (bundled), it should be sibling to index.js in dist/cjs.
- * We look for cli.cjs in the sibling cjs directory if we are in esm.
  */
 function detectDaemonEntry(): string {
   try {
     const currentFile = fileURLToPath(import.meta.url)
     const currentDir = dirname(currentFile)
     
-    // If we are in dist/esm/index.js, the CLI is at dist/cjs/cli.cjs
+    const possiblePaths: string[] = []
+
+    // 1. If we are in dist/esm/daemon/bootstrap.js, the CLI is at dist/cjs/cli.cjs
     if (currentFile.includes(join('dist', 'esm'))) {
-      return join(currentDir, '..', 'cjs', 'cli.cjs')
+      possiblePaths.push(resolve(currentDir, '..', '..', 'cjs', 'cli.cjs'))
     }
     
-    // Fallback for development (if running via bun/ts-node)
-    return join(process.cwd(), 'src', 'cli.ts')
+    // 2. Fallback for development: look for src/cli.ts relative to known locations
+    possiblePaths.push(resolve(process.cwd(), 'src', 'cli.ts'))
+    possiblePaths.push(resolve(process.cwd(), '..', '..', 'src', 'cli.ts')) // for examples
+
+    for (const p of possiblePaths) {
+      if (existsSync(p)) {
+        return p
+      }
+    }
+
+    return resolve(process.argv[1] ?? '')
   } catch {
-    return process.argv[1] ?? ''
+    return resolve(process.argv[1] ?? '')
   }
 }
 
+import { existsSync } from 'node:fs'
+
 async function spawnDaemon(entryOverride?: string, homeDir?: string): Promise<void> {
   const entry = entryOverride ?? detectDaemonEntry()
-  if (!entry) {
-    throw new Error('Cannot determine entry point for daemon')
+  console.log(`[harbord] Bootstrapping daemon using entry: ${entry}`)
+
+  if (!entry || !existsSync(entry)) {
+    throw new Error(`Cannot find daemon entry point: ${entry}. Try providing 'daemonEntry' in Harbor options.`)
   }
 
   // Use bun if it's a .ts file, otherwise use node
   const execPath = entry.endsWith('.ts') ? 'bun' : process.execPath
   const args = entry.endsWith('.ts') ? ['run', entry, '--daemon'] : [entry, '--daemon']
+
+  console.log(`[harbord] Executing: ${execPath} ${args.join(' ')}`)
 
   const child = spawn(execPath, args, {
     detached: true,
@@ -59,6 +74,7 @@ async function spawnDaemon(entryOverride?: string, homeDir?: string): Promise<vo
   })
 
   child.unref()
+  console.log(`[harbord] Daemon spawned (PID: ${child.pid}). Waiting for socket...`)
 }
 
 async function waitForSocket(
@@ -99,6 +115,17 @@ export async function connectOrBootstrap(
     throw new Error(`Daemon not running at ${registry.getSocketPath()} and autoBootstrap is disabled.`)
   }
 
+  // Check for stale lock
+  const lockMtime = await registry.getLockMtime()
+  if (lockMtime > 0) {
+    const age = Date.now() - lockMtime
+    // If lock exists but we couldn't connect, and it's older than 10s, it might be stale
+    if (age > 10000) {
+      console.warn(`[harbord] Found potentially stale bootstrap lock (age: ${Math.round(age / 1000)}s). Cleaning up...`)
+      await registry.releaseBootstrapLock()
+    }
+  }
+
   // Try to become the bootstrap leader
   const isLeader = await registry.acquireBootstrapLock()
 
@@ -112,6 +139,7 @@ export async function connectOrBootstrap(
     }
   } else {
     // Another process is bootstrapping — wait for it
+    console.log(`[harbord] Another process is bootstrapping. Waiting for socket...`)
     await waitForSocket(registry.getSocketPath(), timeout)
   }
 

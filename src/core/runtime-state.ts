@@ -8,6 +8,7 @@ export type RuntimeStatus =
   | 'crashed'
 
 export interface RuntimeState {
+  id?: string
   status: RuntimeStatus
   pid?: number
   startedAt?: number
