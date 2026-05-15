@@ -28,6 +28,14 @@ A monitoring scenario where multiple workers send heartbeats to the supervisor, 
   2. Workers periodically call `self.alive()` to report health.
   3. A dashboard monitors the `running` status of all workers.
 
+### 4. Multi-Instance Bootstrap (`multi-instance/`)
+Demonstrates how Harbord handles multiple clients attempting to start the daemon at the exact same time.
+- **Key Feature**: Atomic bootstrap locking and coordination.
+- **Workflow**:
+  1. A script launches 5 clients simultaneously.
+  2. One client successfully starts the daemon.
+  3. The other 4 clients wait for the socket and attach to the shared instance.
+
 ## How to Run
 
 Ensure you have built the project first:
@@ -39,13 +47,16 @@ The examples are set up as standalone sub-packages. You can run them using `bun 
 
 ```bash
 # IDE Plugin Example
-bun run examples/ide-plugin/client.ts
+bun run examples/ide-plugin/src/client.ts
 
 # MCP Servers Example
-bun run examples/mcp-servers/manager.ts
+bun run examples/mcp-servers/src/manager.ts
 
 # Microservice Dashboard Example
-bun run examples/microservices/dashboard.ts
+bun run examples/microservices/src/dashboard.ts
+
+# Multi-Instance Example
+bun run examples/multi-instance/src/run-parallel.ts
 ```
 
 Each example has its own `package.json` and `tsconfig.json`, demonstrating how to use Harbord as a dependency in a real project.
@@ -54,7 +65,7 @@ Each example has its own `package.json` and `tsconfig.json`, demonstrating how t
 
 If you are modifying Harbord and want to see the changes reflected in the examples, make sure to run `bun run build` so that the generated types and bundles are updated. The examples are linked to the root package via `bun link`.
 
-These examples are automatically validated by the E2E test suite:
+These examples are automatically validated by the integrated E2E test suite:
 ```bash
-bun run test:e2e e2e/examples.test.ts
+bun run test:e2e
 ```

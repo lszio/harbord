@@ -2,12 +2,15 @@
 
 **Harbord** is a declarative local runtime supervisor for Node.js applications. It manages long-running processes (services) with automatic reconciliation, health monitoring, and a simple SDK for service discovery and lifecycle management.
 
+It acts as an **Embedded Runtime Control Plane**, allowing multiple clients (like IDE plugins, CLI tools, or background agents) to coordinate and share named runtime services reliably.
+
 ## Key Features
 
 - **Declarative Service Management**: Define how your services should run, and Harbord ensures they stay that way.
+- **Shared Singleton Runtimes**: Multiple clients can attach to the same named service, enabling cross-instance coordination.
 - **Hidden Daemon**: The supervisor daemon starts automatically on first use via the SDK, keeping the interface simple and zero-config.
 - **Robust Reconciliation**: Automatically restarts crashed services or services that fail health checks.
-- **Unified SDK**: Connect, manage services, and handle self-registration with a single, type-safe API.
+- **Metadata Discovery**: Services can expose dynamic data (like ports or capabilities) which clients can discover via the SDK.
 - **Zero Configuration**: Sensible defaults with an optional `HARBORD_HOME` environment variable for customization.
 
 ## Installation
@@ -29,65 +32,56 @@ const harbor = new Harbor();
 const info = await harbor.daemon.status();
 console.log(`Harbord is running (PID: ${info.pid})`);
 
-// Define and start a service
+// Define and start a service (or attach if already running)
 const svc = await harbor.service('my-api', {
   entry: './dist/server.js',
   args: ['--port', '3000'],
   env: { NODE_ENV: 'production' }
 });
 
-console.log(`Service status: ${svc.state.status}`);
-```
+console.log(`Service status: ${svc.state?.status}`);
 
-## SDK Interface
-
-### `Harbor` Constructor Options
-
-```typescript
-const harbor = new Harbor({
-  /** Base directory for state and socket. Defaults to ~/.harbord or $HARBORD_HOME */
-  home: '/custom/path',
-  /** Whether to automatically start the daemon if not running. Defaults to true. */
-  autoBootstrap: true,
-  /** Timeout for waiting for the daemon to start (ms). */
-  timeout: 5000
-});
-```
-
-### Managing Services
-
-```typescript
-// Start or attach to a service
-const svc = await harbor.service('my-service', spec);
-
-// Stop a service
-await svc.down();
-
-// Refresh current state from daemon
-await svc.refresh();
-
-// Replace with a new spec (if there's a conflict)
-if (svc.conflicted) {
-  await svc.replace();
+// Wait for the service to expose its dynamic port
+while (!svc.meta?.port) {
+  await new Promise(r => setTimeout(r, 500));
+  await svc.refresh();
 }
+console.log(`Service is listening on port ${svc.meta.port}`);
 ```
 
-### Self-Registration (for Worker Processes)
+## Self-Registration (for Worker Processes)
 
 If your process is running *inside* Harbord, it can identify itself and send heartbeats.
 
 ```typescript
+import { Harbor } from 'harbord';
+
+const harbor = new Harbor();
 const self = await harbor.self('worker-id');
 
 // Expose metadata (e.g., ports, version)
-await self.expose({ port: 8080 });
+await self.expose({ port: 3000, protocol: 'http' });
 
-// Send a heartbeat
-await self.alive();
+// Send heartbeats to indicate health
+setInterval(() => self.alive(), 5000);
 
 // Graceful shutdown notification
-await self.shutdown();
+process.on('SIGTERM', async () => {
+  await self.shutdown();
+  process.exit(0);
+});
 ```
+
+## Examples & Scenarios
+
+Check out the `examples/` directory for complete, standalone project examples including:
+
+1. **IDE Plugin Backend**: Shared Language Server between multiple IDE instances.
+2. **Dynamic MCP Servers**: Managing and discovering multiple Model Context Protocol servers.
+3. **Microservice Dashboard**: Health monitoring with heartbeats and status aggregation.
+4. **Multi-Instance Bootstrap**: Robust handling of concurrent daemon startup.
+
+Each example includes its own E2E tests and demonstrates real-world usage patterns.
 
 ## CLI Usage
 
@@ -97,10 +91,10 @@ While the SDK handles the daemon automatically, you can also interact via the CL
 # Start the daemon manually
 harbord --daemon
 
-# Check status
+# Check status of the daemon and all services
 harbord status
 
-# List runtimes
+# List all known runtimes
 harbord list
 ```
 
@@ -110,10 +104,10 @@ harbord list
 # Install dependencies
 bun install
 
-# Build the project
+# Build the project (generates ESM, CJS, and Types)
 bun run build
 
-# Run E2E tests
+# Run E2E and integration tests
 bun run test:e2e
 ```
 
