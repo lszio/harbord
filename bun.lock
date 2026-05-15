@@ -19,12 +19,18 @@
       "dependencies": {
         "harbord": "file:../..",
       },
+      "devDependencies": {
+        "vitest": "^4.1.5",
+      },
     },
     "examples/mcp-servers": {
       "name": "example-mcp-servers",
       "version": "1.0.0",
       "dependencies": {
         "harbord": "file:../..",
+      },
+      "devDependencies": {
+        "vitest": "^4.1.5",
       },
     },
     "examples/microservices": {
@@ -33,12 +39,18 @@
       "dependencies": {
         "harbord": "file:../..",
       },
+      "devDependencies": {
+        "vitest": "^4.1.5",
+      },
     },
     "examples/multi-instance": {
       "name": "example-multi-instance",
       "version": "1.0.0",
       "dependencies": {
         "harbord": "file:../..",
+      },
+      "devDependencies": {
+        "vitest": "^4.1.5",
       },
     },
   },
@@ -324,7 +336,5 @@
     "why-is-node-running": ["why-is-node-running@2.3.0", "https://registry.npmjs.com/why-is-node-running/-/why-is-node-running-2.3.0.tgz", { "dependencies": { "siginfo": "^2.0.0", "stackback": "0.0.2" }, "bin": { "why-is-node-running": "cli.js" } }, "sha512-hUrmaWBdVDcxvYqnyh09zunKzROWjbZTiNy8dBEjkS7ehEDQibXJ7XvlmtbwuTclUiIyN+CyXQD4Vmko8fNm8w=="],
 
     "wordwrap": ["wordwrap@1.0.0", "https://registry.npmjs.com/wordwrap/-/wordwrap-1.0.0.tgz", {}, "sha512-gvVzJFlPycKc5dZN4yPkP8w7Dc37BtP1yczEneOb4uq34pXZcvrtRTmWV8W+Ume+XCxKgbjM+nevkyFPMybd4Q=="],
-
-    "example-multi-instance/harbord": ["harbord@root:", {}],
   }
 }
