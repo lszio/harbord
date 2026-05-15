@@ -3,6 +3,7 @@ import { existsSync } from 'node:fs'
 import { join } from 'node:path'
 import { homedir } from 'node:os'
 import type { RuntimeState } from '../core/runtime-state'
+import type { RuntimeSpec } from '../core/runtime-spec'
 
 export class Registry {
   readonly baseDir: string
@@ -34,6 +35,28 @@ export class Registry {
     }
   }
 
+  async saveSpec(id: string, spec: RuntimeSpec): Promise<void> {
+    const filePath = this.specPath(id)
+    const tmpPath = filePath + '.tmp'
+    await writeFile(tmpPath, JSON.stringify(spec), 'utf-8')
+    await rename(tmpPath, filePath)
+  }
+
+  async loadSpec(id: string): Promise<RuntimeSpec | null> {
+    const filePath = this.specPath(id)
+    try {
+      const data = await readFile(filePath, 'utf-8')
+      return JSON.parse(data) as RuntimeSpec
+    } catch {
+      return null
+    }
+  }
+
+  async removeSpec(id: string): Promise<void> {
+    const filePath = this.specPath(id)
+    await unlink(filePath).catch(() => {})
+  }
+
   async removeState(id: string): Promise<void> {
     const filePath = this.statePath(id)
     await unlink(filePath).catch(() => {})
@@ -42,7 +65,7 @@ export class Registry {
   async listIds(): Promise<string[]> {
     const files = await readdir(this.stateDir)
     return files
-      .filter((f) => f.endsWith('.json'))
+      .filter((f) => f.endsWith('.json') && !f.endsWith('.spec.json'))
       .map((f) => f.slice(0, -5))
   }
 
@@ -78,5 +101,9 @@ export class Registry {
 
   private statePath(id: string): string {
     return join(this.stateDir, `${id}.json`)
+  }
+
+  private specPath(id: string): string {
+    return join(this.stateDir, `${id}.spec.json`)
   }
 }

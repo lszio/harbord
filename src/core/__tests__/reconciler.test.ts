@@ -3,11 +3,6 @@ import { Reconciler } from '../reconciler'
 import type { RuntimeSpec } from '../runtime-spec'
 import type { RuntimeState } from '../runtime-state'
 
-function mockService(overrides?: Partial<ReturnType<typeof createMockService>>) {
-  const defaults = createMockService()
-  return { ...defaults, ...overrides }
-}
-
 function createMockService() {
   const specs = new Map<string, RuntimeSpec>()
   const states = new Map<string, RuntimeState>()
@@ -15,8 +10,11 @@ function createMockService() {
   return {
     states,
     specs,
-    listRunning: vi.fn(() => Array.from(specs.keys())),
-    getSpec: vi.fn((id: string) => specs.get(id)),
+    listRunning: vi.fn(() => Array.from(states.entries())
+      .filter(([_, s]) => s.status === 'running' || s.status === 'starting')
+      .map(([id]) => id)),
+    listAll: vi.fn(async () => Array.from(states.keys())),
+    getSpec: vi.fn(async (id: string) => specs.get(id) ?? null),
     inspect: vi.fn(async (id: string) => states.get(id) ?? null),
     start: vi.fn(async (spec: RuntimeSpec) => {
       specs.set(spec.id, spec)
@@ -24,7 +22,6 @@ function createMockService() {
       return states.get(spec.id)!
     }),
     stop: vi.fn(async (id: string) => {
-      specs.delete(id)
       states.set(id, { status: 'stopped' })
       return states.get(id)!
     }),
@@ -37,7 +34,7 @@ describe('Reconciler', () => {
 
   beforeEach(() => {
     service = createMockService()
-    reconciler = new Reconciler(service as any, 100)
+    reconciler = new Reconciler(service as any, 10) // Fast ticks for tests
   })
 
   afterEach(() => {
@@ -54,7 +51,7 @@ describe('Reconciler', () => {
 
   it('should restart a crashed runtime', async () => {
     const spec: RuntimeSpec = { id: 'svc', entry: 'test.js' }
-    service.start(spec)
+    await service.start(spec)
     service.states.set('svc', { status: 'crashed' })
 
     reconciler.start()
@@ -66,12 +63,12 @@ describe('Reconciler', () => {
 
   it('should NOT restart a stopped runtime', async () => {
     const spec: RuntimeSpec = { id: 'svc', entry: 'test.js' }
-    service.start(spec)
+    await service.start(spec)
     service.states.set('svc', { status: 'stopped' })
 
     reconciler.start()
     // Give the reconciler a tick
-    await new Promise((r) => setTimeout(r, 200))
+    await new Promise((r) => setTimeout(r, 100))
     reconciler.stop()
 
     // Should not have called start again (only the initial call)
@@ -92,7 +89,7 @@ describe('Reconciler', () => {
       ],
     }
 
-    service.start(spec)
+    await service.start(spec)
     service.states.set('svc', { status: 'running' })
 
     reconciler.start()
@@ -107,7 +104,7 @@ describe('Reconciler', () => {
     service.states.set('orphan', { status: 'crashed' })
 
     reconciler.start()
-    await new Promise((r) => setTimeout(r, 200))
+    await new Promise((r) => setTimeout(r, 100))
     reconciler.stop()
 
     expect(service.start).not.toHaveBeenCalled()
@@ -127,7 +124,7 @@ describe('Reconciler', () => {
       ],
     }
 
-    service.start(spec)
+    await service.start(spec)
     service.states.set('svc', { status: 'running' })
 
     reconciler.start()

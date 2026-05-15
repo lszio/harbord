@@ -82,7 +82,7 @@ export class Daemon {
     })
     this.server.on(IpcMethod.RuntimeGetSpec, async (req) => {
       const params = req.params as { id: string }
-      return this.runtimeService.getSpec(params.id) ?? null
+      return this.runtimeService.getSpec(params.id)
     })
 
     // Self registration

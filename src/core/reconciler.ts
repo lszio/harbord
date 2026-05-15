@@ -49,20 +49,23 @@ export class Reconciler {
   }
 
   private async reconcile(): Promise<void> {
-    for (const id of this.runtimeService.listRunning()) {
-      const spec = this.runtimeService.getSpec(id)
+    const ids = await this.runtimeService.listAll()
+    
+    for (const id of ids) {
+      const spec = await this.runtimeService.getSpec(id)
       if (!spec) continue
 
       const state = await this.runtimeService.inspect(id)
+      if (!state) continue
 
       // Restart if crashed
-      if (state && state.status === 'crashed') {
+      if (state.status === 'crashed') {
         await this.runtimeService.start(spec)
         continue
       }
 
       // Stop if heartbeat expired (owner disappeared)
-      if (this.heartbeats && state && (state.status === 'running' || state.status === 'starting')) {
+      if (this.heartbeats && (state.status === 'running' || state.status === 'starting')) {
         if (this.heartbeats.isExpired(id)) {
           await this.runtimeService.stop(id)
           this.heartbeats.clear(id)
@@ -71,7 +74,7 @@ export class Reconciler {
       }
 
       // Check conditions
-      if (spec.conditions && state) {
+      if (spec.conditions && (state.status === 'running' || state.status === 'starting')) {
         for (const condition of spec.conditions) {
           try {
             const ok = await condition.check(spec, state)
@@ -85,6 +88,10 @@ export class Reconciler {
           }
         }
       }
+      
+      // If stopped but desired (e.g. singleton that should always run)
+      // For now, we only restart on crashed. 
+      // Future: based on spec.desiredState or similar.
     }
   }
 }

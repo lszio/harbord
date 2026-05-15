@@ -25,6 +25,7 @@ export class RuntimeService {
     }
 
     this.specs.set(spec.id, spec)
+    await this.registry.saveSpec(spec.id, spec)
 
     const starting: RuntimeState = { status: 'starting' }
     this.states.set(spec.id, starting)
@@ -74,6 +75,11 @@ export class RuntimeService {
     const stopped: RuntimeState = { status: 'stopped' }
     this.states.set(id, stopped)
     await this.registry.saveState(id, stopped)
+    
+    // We keep the spec even after stop, because it's the "desired state"
+    // that might be restarted by the reconciler if conditions match.
+    // However, if we explicitly stop it, we might want to mark it as not intended to run.
+    // For now, let's keep it in the registry but remove from memory.
     this.specs.delete(id)
 
     return stopped
@@ -88,15 +94,28 @@ export class RuntimeService {
     }
 
     // Fall back to in-memory, then registry
-    return this.states.get(id) ?? this.registry.loadState(id)
+    const state = this.states.get(id) ?? await this.registry.loadState(id)
+    if (state) {
+      this.states.set(id, state)
+    }
+    return state
   }
 
   logs(id: string): AsyncIterable<RuntimeEvent> {
     return this.backend.logs(id)
   }
 
-  getSpec(id: string): RuntimeSpec | undefined {
-    return this.specs.get(id)
+  async getSpec(id: string): Promise<RuntimeSpec | null> {
+    let spec: RuntimeSpec | null | undefined = this.specs.get(id)
+    if (spec === undefined) {
+      spec = await this.registry.loadSpec(id)
+      if (spec) {
+        this.specs.set(id, spec)
+      } else {
+        spec = null
+      }
+    }
+    return spec
   }
 
   listRunning(): string[] {
@@ -107,5 +126,12 @@ export class RuntimeService {
       }
     }
     return running
+  }
+
+  /**
+   * List all known runtime IDs (those with state or spec in registry)
+   */
+  async listAll(): Promise<string[]> {
+    return this.registry.listIds()
   }
 }
